@@ -9,8 +9,9 @@ st.title("Hospital Overcapacity Prediction App")
 st.write("Predict hospital overcapacity using historical trends.")
 
 # Input features
-st.write("Enter the features for the last 12 months:")
-features = st.text_input("Comma-separated feature values (e.g., 100, 200, 300, ...):")
+st.write("Enter the hospital data for prediction:")
+features = st.text_input("Enter data as comma-separated values: Admissions, Beds, Outpatient visits, Expenditure (e.g., 500, 200, 300, 50):")
+
 
 if st.button("Predict"):
     try:

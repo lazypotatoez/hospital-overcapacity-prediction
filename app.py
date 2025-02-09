@@ -2,76 +2,81 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
+from tensorflow.keras.models import load_model
+import plotly.express as px
 
-# Streamlit App Title
-st.title("Outpatient Attendance Prediction")
+# Load pre-trained model (replace 'model.h5' with your model file)
+@st.cache_resource
+def load_prediction_model():
+    model = load_model('best_deep_model.h5')
+    return model
 
-# Sidebar for Inputs
-st.sidebar.header("Historical Attendance Data")
-sequence_length = st.sidebar.radio("Select Sequence Length:", [1, 12], index=1)
-
-if sequence_length == 12:
-    st.sidebar.write("Enter outpatient attendance for the last 12 months:")
-    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    attendance_data = []
-    for month in months:
-        value = st.sidebar.number_input(f"{month}", min_value=0, value=0, step=100)
-        attendance_data.append(value)
-else:
-    attendance_data = [
-        st.sidebar.number_input("Enter outpatient attendance for the previous month:", min_value=0, value=0, step=100)
-    ]
-
-# CSV Upload Option
-st.sidebar.write("---")
-uploaded_file = st.sidebar.file_uploader("Or Upload CSV File:", type=["csv"])
-
-def predict_future(attendance_data, years=5):
-    X = np.arange(len(attendance_data)).reshape(-1, 1)
-    y = np.array(attendance_data)
-
-    model = LinearRegression()
-    model.fit(X, y)
-
-    future_X = np.arange(len(attendance_data), len(attendance_data) + years).reshape(-1, 1)
-    predictions = model.predict(future_X)
+# Prediction function
+def predict_overcapacity(model, data):
+    # Ensure input matches the model's required shape
+    # Replace this preprocessing based on your model
+    X = data.values.reshape(1, -1)
+    predictions = model.predict(X)
     return predictions
 
-# Process Uploaded CSV
-if uploaded_file is not None:
+# Resource optimization recommendations
+def generate_recommendations(predictions):
+    if predictions[0][0] > 0.8:  # Example threshold for overcapacity
+        return "Increase bed capacity, hire additional staff, and allocate more funds."
+    elif predictions[0][0] > 0.5:
+        return "Monitor closely and consider minor resource adjustments."
+    else:
+        return "Current resources are sufficient for predicted demand."
+
+# Streamlit UI
+st.title("Hospital Overcapacity Prediction & Resource Optimization")
+
+st.sidebar.header("User Input")
+uploaded_file = st.sidebar.file_uploader("Upload Historical Data (CSV)", type=["csv"])
+
+if uploaded_file:
+    # Read uploaded CSV
     data = pd.read_csv(uploaded_file)
-    if 'attendance' in data.columns:
-        attendance_data = data['attendance'].tolist()
-        st.success("CSV uploaded successfully!")
-    else:
-        st.error("The CSV must contain a column named 'attendance'.")
+    st.sidebar.success("File uploaded successfully!")
+    
+    # Display uploaded data
+    st.subheader("Uploaded Data")
+    st.dataframe(data)
 
-# Prediction and Visualization
-if st.button("Predict Future Attendance"):
-    if len(attendance_data) >= 1:
-        future_years = 5
-        predictions = predict_future(attendance_data, years=future_years)
+    # Allow user to select the columns for prediction
+    st.sidebar.subheader("Select Features for Prediction")
+    features = st.sidebar.multiselect("Select columns to use for prediction", data.columns)
+    
+    if len(features) > 0:
+        st.write("Using features:", features)
+        selected_data = data[features]
 
-        # Display Results
+        # Prediction
         st.subheader("Prediction Results")
-        for i, pred in enumerate(predictions):
-            st.write(f"Year {i + 1}: {int(pred):,}")
+        model = load_prediction_model()
+        predictions = predict_overcapacity(model, selected_data.iloc[-1])
+        
+        # Display prediction
+        st.write(f"Predicted Overcapacity Probability: {predictions[0][0]:.2f}")
+        
+        # Show recommendations
+        st.subheader("Resource Optimization Recommendations")
+        recommendations = generate_recommendations(predictions)
+        st.write(recommendations)
 
-        # Plotting
-        st.subheader("Attendance Trends")
-        plt.figure(figsize=(10, 5))
-        plt.plot(np.arange(len(attendance_data)), attendance_data, label="Historical Data", marker='o')
-        plt.plot(
-            np.arange(len(attendance_data), len(attendance_data) + future_years),
-            predictions,
-            label="Predicted Data",
-            marker='o',
-        )
-        plt.xlabel("Time")
-        plt.ylabel("Attendance")
-        plt.legend()
-        plt.title("Outpatient Attendance Trend")
-        st.pyplot(plt)
-    else:
-        st.error("Please provide at least one data point for prediction.")
+        # Visualization
+        st.subheader("Trend Analysis")
+        fig = px.line(data, x=data.index, y=features, title="Trend of Selected Features")
+        st.plotly_chart(fig)
+
+else:
+    st.sidebar.warning("Please upload a CSV file to proceed.")
+    st.write("Upload historical data in CSV format to start predictions.")
+
+st.sidebar.markdown("""
+---
+**Instructions:**
+1. Upload a CSV containing historical hospital data (admissions, bed availability, outpatient visits, etc.).
+2. Select the features to use for prediction.
+3. View predictions and optimization strategies.
+""")

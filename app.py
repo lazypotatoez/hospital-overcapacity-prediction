@@ -75,7 +75,3 @@ if st.button("Predict Future Attendance"):
         st.pyplot(plt)
     else:
         st.error("Please provide at least one data point for prediction.")
-
-# Footer
-st.write("---")
-st.write("Developed with ❤️ using Streamlit")

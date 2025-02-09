@@ -1,27 +1,22 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
-import plotly.express as px
 
-# Load pre-trained model (replace 'model.h5' with your model file)
+# Load pre-trained model
 @st.cache_resource
 def load_prediction_model():
     model = load_model('best_deep_model.h5')
     return model
 
 # Prediction function
-def predict_overcapacity(model, data):
-    # Ensure input matches the model's required shape
-    # Replace this preprocessing based on your model
-    X = data.values.reshape(1, -1)
+def predict_overcapacity(model, inputs):
+    X = np.array(inputs).reshape(1, -1)  # Reshape inputs for the model
     predictions = model.predict(X)
     return predictions
 
 # Resource optimization recommendations
 def generate_recommendations(predictions):
-    if predictions[0][0] > 0.8:  # Example threshold for overcapacity
+    if predictions[0][0] > 0.8:  # Threshold for overcapacity
         return "Increase bed capacity, hire additional staff, and allocate more funds."
     elif predictions[0][0] > 0.5:
         return "Monitor closely and consider minor resource adjustments."
@@ -31,52 +26,38 @@ def generate_recommendations(predictions):
 # Streamlit UI
 st.title("Hospital Overcapacity Prediction & Resource Optimization")
 
-st.sidebar.header("User Input")
-uploaded_file = st.sidebar.file_uploader("Upload Historical Data (CSV)", type=["csv"])
+st.sidebar.header("Input Features")
+st.sidebar.markdown("Provide historical data or adjust sliders to predict future hospital capacity.")
 
-if uploaded_file:
-    # Read uploaded CSV
-    data = pd.read_csv(uploaded_file)
-    st.sidebar.success("File uploaded successfully!")
-    
-    # Display uploaded data
-    st.subheader("Uploaded Data")
-    st.dataframe(data)
+# Example input features (adjust based on your model)
+admissions = st.sidebar.slider("Monthly Hospital Admissions", min_value=0, max_value=1000, value=500, step=10)
+bed_availability = st.sidebar.slider("Bed Availability (%)", min_value=0, max_value=100, value=70, step=1)
+outpatient_visits = st.sidebar.slider("Monthly Outpatient Visits", min_value=0, max_value=5000, value=2000, step=100)
+government_health_expenditure = st.sidebar.slider("Govt. Health Expenditure ($M)", min_value=0, max_value=500, value=100, step=10)
 
-    # Allow user to select the columns for prediction
-    st.sidebar.subheader("Select Features for Prediction")
-    features = st.sidebar.multiselect("Select columns to use for prediction", data.columns)
-    
-    if len(features) > 0:
-        st.write("Using features:", features)
-        selected_data = data[features]
+# Combine inputs
+inputs = [admissions, bed_availability, outpatient_visits, government_health_expenditure]
 
-        # Prediction
-        st.subheader("Prediction Results")
-        model = load_prediction_model()
-        predictions = predict_overcapacity(model, selected_data.iloc[-1])
-        
-        # Display prediction
-        st.write(f"Predicted Overcapacity Probability: {predictions[0][0]:.2f}")
-        
-        # Show recommendations
-        st.subheader("Resource Optimization Recommendations")
-        recommendations = generate_recommendations(predictions)
-        st.write(recommendations)
+# Load the model
+model = load_prediction_model()
 
-        # Visualization
-        st.subheader("Trend Analysis")
-        fig = px.line(data, x=data.index, y=features, title="Trend of Selected Features")
-        st.plotly_chart(fig)
+# Prediction
+st.subheader("Prediction Results")
+predictions = predict_overcapacity(model, inputs)
 
+if predictions is not None:
+    st.write(f"Predicted Overcapacity Probability: {predictions[0][0]:.2f}")
+    # Display recommendations
+    st.subheader("Resource Optimization Recommendations")
+    recommendations = generate_recommendations(predictions)
+    st.write(recommendations)
 else:
-    st.sidebar.warning("Please upload a CSV file to proceed.")
-    st.write("Upload historical data in CSV format to start predictions.")
+    st.error("Error in generating prediction.")
 
+# Instructions
 st.sidebar.markdown("""
 ---
 **Instructions:**
-1. Upload a CSV containing historical hospital data (admissions, bed availability, outpatient visits, etc.).
-2. Select the features to use for prediction.
-3. View predictions and optimization strategies.
+1. Adjust the input sliders to reflect your hospital's historical data or expected scenarios.
+2. View predictions and recommendations for resource optimization.
 """)

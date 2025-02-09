@@ -1,82 +1,79 @@
 import streamlit as st
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
+import plotly.express as px
 
-# Load pre-trained model (replace 'best_deep_model.h5' with your model file)
+# Load pre-trained model (replace 'model.h5' with your model file)
 @st.cache_resource
 def load_prediction_model():
     model = load_model('best_deep_model.h5')
     return model
 
 # Prediction function
-def predict_overcapacity(model, inputs):
-    try:
-        # Reshape the input and ensure it's a float
-        X = np.array(inputs, dtype=float).reshape(1, -1)
-
-        # Uncomment if scaling is needed (e.g., MinMaxScaler during training)
-        # scaler = load_scaler()  # Load the scaler used during training
-        # X = scaler.transform(X)
-
-        # Make prediction
-        predictions = model.predict(X)
-        return predictions
-    except Exception as e:
-        st.error(f"Error in prediction: {e}")
-        return None
-
-# Resource optimization recommendations
-def generate_recommendations(predictions):
-    if predictions[0][0] > 0.8:  # Example threshold for overcapacity
-        return "Increase bed capacity, hire additional staff, and allocate more funds."
-    elif predictions[0][0] > 0.5:
-        return "Monitor closely and consider minor resource adjustments."
-    else:
-        return "Current resources are sufficient for predicted demand."
+def predict_capacity(model, input_features):
+    input_data = np.array(input_features).reshape(1, -1)  # Adjust input shape based on the model
+    prediction = model.predict(input_data)
+    return prediction[0][0]  # Return the single predicted value
 
 # Streamlit UI
-st.title("Hospital Overcapacity Prediction & Resource Optimization")
-st.sidebar.header("Input Features")
+st.title("Hospital Capacity Prediction & Visualization")
 
-# Slider inputs for features
-admissions = st.sidebar.slider("Monthly Hospital Admissions", 0, 1000, 310)
-bed_availability = st.sidebar.slider("Bed Availability (%)", 0, 100, 45)
+# Sidebar for user inputs
+st.sidebar.header("User Input Features")
+monthly_admissions = st.sidebar.slider("Monthly Hospital Admissions", 0, 1000, 500)
+bed_availability = st.sidebar.slider("Bed Availability (%)", 0, 100, 50)
 outpatient_visits = st.sidebar.slider("Monthly Outpatient Visits", 0, 5000, 2500)
-health_expenditure = st.sidebar.slider("Govt. Health Expenditure ($M)", 0, 500, 240)
+gov_health_expenditure = st.sidebar.slider("Government Health Expenditure ($M)", 0, 500, 200)
 
-# Combine inputs into a list
-inputs = [admissions, bed_availability, outpatient_visits, health_expenditure]
+# Year input for prediction
+st.sidebar.header("Year for Prediction")
+prediction_year = st.sidebar.number_input("Enter Year to Predict (e.g., 2025)", min_value=2025, step=1)
 
-# Load model
+# Combine inputs for prediction
+input_features = [monthly_admissions, bed_availability, outpatient_visits, gov_health_expenditure]
+
+# Predict using the model
 model = load_prediction_model()
+predicted_capacity = predict_capacity(model, input_features)
 
-# Prediction
-st.subheader("Prediction Results")
-predictions = predict_overcapacity(model, inputs)
-if predictions is not None:
-    st.write(f"Predicted Overcapacity Probability: {predictions[0][0]:.2f}")
+# Display prediction results
+st.subheader(f"Predicted Hospital Capacity for {prediction_year}")
+st.write(f"**Predicted Capacity:** {predicted_capacity:.2f}")
 
-    # Show recommendations
-    st.subheader("Resource Optimization Recommendations")
-    recommendations = generate_recommendations(predictions)
-    st.write(recommendations)
+# Visualization
+st.subheader("Prediction Trend")
+# Create a trend for past years + predicted year
+years = list(range(prediction_year - 5, prediction_year + 1))  # Past 5 years + predicted year
+capacity_trends = [np.random.uniform(300, 800) for _ in range(5)]  # Simulated past data
+capacity_trends.append(predicted_capacity)  # Append predicted value
 
-    # Visualization (optional)
-    st.subheader("Input Data Visualization")
-    fig, ax = plt.subplots()
-    feature_names = ["Admissions", "Bed Availability", "Outpatient Visits", "Health Expenditure"]
-    ax.bar(feature_names, inputs, color=['blue', 'orange', 'green', 'red'])
-    ax.set_title("Input Features")
-    ax.set_ylabel("Values")
-    st.pyplot(fig)
-else:
-    st.write("Prediction could not be completed. Check your input values and try again.")
+# Line chart for capacity trends
+fig = px.line(
+    x=years,
+    y=capacity_trends,
+    labels={'x': 'Year', 'y': 'Hospital Capacity'},
+    title="Hospital Capacity Trend",
+    markers=True
+)
+st.plotly_chart(fig)
+
+# Bar chart for capacity trends
+st.subheader("Capacity by Year")
+fig_bar = px.bar(
+    x=years,
+    y=capacity_trends,
+    labels={'x': 'Year', 'y': 'Hospital Capacity'},
+    title="Hospital Capacity by Year"
+)
+st.plotly_chart(fig_bar)
 
 # Sidebar instructions
 st.sidebar.markdown("""
 ---
 **Instructions:**
-1. Adjust the sliders to input historical data or estimates.
-2. View predictions and optimization strategies.
+1. Adjust the input features using the sliders.
+2. Enter the year you want to predict hospital capacity for.
+3. View the predicted results and trends through the visualizations.
 """)
